@@ -1,4 +1,4 @@
-﻿using Raylib_cs;
+using Raylib_cs;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -532,34 +532,6 @@ class Program
             Raylib.DrawText($"{(int)(volume * 100)}%", (int)volumeSliderVisual.X + (int)volumeSliderVisual.Width + 10, 
                           (int)volumeSliderVisual.Y, 20, Color.White);
 
-            // Status message
-            Color statusColor = currentState switch
-            {
-                GameState.Success => Color.Green,
-                GameState.Falling => Color.Red,
-                GameState.QuickDelivery => Color.Yellow,
-                _ => new Color(100, 150, 255, 255)
-            };
-            Raylib.DrawText(statusMessage, 50, 30, 25, statusColor);
-
-            if (!string.IsNullOrEmpty(stickman.CurrentWord) && currentState != GameState.Editing && currentState != GameState.Success)
-            {
-                Raylib.DrawText($"Carrying: {stickman.CurrentWord}", (int)(screenWidth * 0.7f), 30, 20, Color.Yellow);
-            }
-
-            // Draw achievements panel if open
-            if (showAchievements)
-            {
-                DrawAchievementsPanel();
-            }
-
-            // Draw achievement notifications
-            DrawAchievementNotifications();
-
-            if (currentState == GameState.Success)
-            {
-                Raylib.DrawText("Press SPACE to write new code", screenWidth / 2 - 200, screenHeight - 100, 22, Color.Green);
-            }
 
             Raylib.EndDrawing();
         }
