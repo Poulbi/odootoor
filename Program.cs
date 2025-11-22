@@ -2,6 +2,8 @@ using Raylib_cs;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Linq;
+using System.IO;
 
 enum GameState { Editing, Delivering, Returning, Success, QuickDelivery, Falling }
 
@@ -64,7 +66,6 @@ class Stickman
         }
         else if (state == GameState.QuickDelivery)
         {
-            // Supersnelle beweging voor letter delivery
             float quickSpeed = 15.0f;
             if (Position.X > targetPosition.X)
             {
@@ -73,11 +74,9 @@ class Stickman
         }
         else if (state == GameState.Falling)
         {
-            // Val animatie - beweeg naar beneden op dezelfde X positie
             FallTimer -= Raylib.GetFrameTime();
             if (FallTimer > 0)
             {
-                // Lineaire interpolatie van start naar target positie
                 float progress = 1.0f - (FallTimer / 1.0f);
                 Position = Vector2.Lerp(FallStartPosition, FallTargetPosition, progress);
             }
@@ -93,7 +92,7 @@ class Stickman
     public void StartFall(Vector2 currentPos, Vector2 targetPos, string letter)
     {
         IsFalling = true;
-        FallTimer = 1.0f; // 1 seconde valtijd
+        FallTimer = 1.0f;
         FallStartPosition = currentPos;
         FallTargetPosition = targetPos;
         FallenLetter = letter;
@@ -107,15 +106,13 @@ class Stickman
         
         if (IsFalling)
         {
-            // Vallende stickman - horizontaal
             Raylib.DrawCircle(x, y - 20, 10, new Color(255, 218, 185, 255));
-            Raylib.DrawLine(x, y - 10, x + 20, y + 10, Color.Blue); // Schuin lichaam
+            Raylib.DrawLine(x, y - 10, x + 20, y + 10, Color.Blue);
             Raylib.DrawLine(x, y, x - 10, y + 5, Color.Blue);
             Raylib.DrawLine(x, y, x + 15, y - 10, Color.Blue);
             Raylib.DrawLine(x + 20, y + 10, x + 5, y + 30, Color.DarkBlue);
             Raylib.DrawLine(x + 20, y + 10, x + 35, y + 25, Color.DarkBlue);
             
-            // Vallende letter
             if (!string.IsNullOrEmpty(FallenLetter))
             {
                 Raylib.DrawRectangle(x - 20, y - 40, 40, 20, Color.White);
@@ -125,7 +122,6 @@ class Stickman
         }
         else
         {
-            // Normale stickman
             Raylib.DrawCircle(x, y - 20, 10, new Color(255, 218, 185, 255));
             Raylib.DrawLine(x, y - 10, x, y + 20, Color.Blue);
             Raylib.DrawLine(x, y, x - 15, y - 5, Color.Blue);
@@ -154,420 +150,184 @@ class Stickman
     }
 }
 
-class Program
+class CodeEditor
 {
-    static int screenWidth = 1200;
-    static int screenHeight = 800;
-    const int CODE_EDITOR_WIDTH_PERCENT = 58;
-    const int CODE_EDITOR_HEIGHT_PERCENT = 75;
-    const int LINE_HEIGHT = 25;
+    public Rectangle Bounds { get; set; }
+    public List<string> Lines { get; set; } = new List<string>();
+    public string CurrentInput { get; set; } = "";
+    public float ScrollOffset { get; set; }
+    public int CurrentLine { get; set; }
+    public Vector2 Position { get; set; }
     
-    static List<Achievement> achievements = new List<Achievement>();
-    static int totalLinesWritten = 0;
-    static bool hasTypedFirstLetter = false;
-    static bool showAchievements = false;
-    static Random rand = new Random();
-
-    // Quick delivery variabelen
-    static bool quickDeliveryActive = false;
-    static string quickDeliveryLetter = "";
-    static float quickDeliveryTimer = 0;
-    static Vector2 quickDeliveryTargetPos;
-    static Vector2 letterDropPosition; // Positie waar de letter in het water valt
-
-    static void Main()
+    private const int LINE_HEIGHT = 25;
+    
+    public CodeEditor(Rectangle bounds, Vector2 position)
     {
-        InitializeAchievements();
-        
-        Raylib.InitWindow(screenWidth, screenHeight, "Stickman IDE");
-        Raylib.SetWindowState(ConfigFlags.ResizableWindow);
-        Raylib.SetTargetFPS(60);
-
-        Stickman stickman = new Stickman(CalculateStickmanStartPosition());
-        Rectangle codeEditor = CalculateCodeEditor();
-        Rectangle executeButton = CalculateExecuteButton();
-        Rectangle achievementsButton = CalculateAchievementsButton();
-        Rectangle volumeSliderVisual = CalculateVolumeSlider();
-        Rectangle volumeSliderActual = CalculateVolumeSliderActual();
-        Vector2 housePos = CalculateHousePosition();
-        Vector2 codeEditorPos = CalculateCodeEditorPosition();
-        
-        List<string> currentLineWords = new List<string>();
-        int currentWordIndex = 0;
-
-        string inputText = "";
-        string statusMessage = "Type code in the editor...";
-        
-        Color executeButtonColor = Color.LightGray;
-        Color achievementsButtonColor = Color.LightGray;
-        
-        GameState currentState = GameState.Editing;
-        List<string> codeLines = new List<string>();
-        int currentLine = 0;
-        float scrollOffset = 0;
-        float volume = 0.5f;
-
-        while (!Raylib.WindowShouldClose())
+        Bounds = bounds;
+        Position = position;
+    }
+    
+    public void HandleInput()
+    {
+        int key = Raylib.GetCharPressed();
+        while (key > 0)
         {
-            if (Raylib.IsWindowResized())
+            char c = (char)key;
+            if (char.IsLetterOrDigit(c) || c == ' ' || c == '.' || c == ',' || c == ';' || 
+                c == '(' || c == ')' || c == '{' || c == '}' || c == '=' || 
+                c == '+' || c == '-' || c == '*' || c == '/')
             {
-                screenWidth = Raylib.GetScreenWidth();
-                screenHeight = Raylib.GetScreenHeight();
-                
-                codeEditor = CalculateCodeEditor();
-                executeButton = CalculateExecuteButton();
-                achievementsButton = CalculateAchievementsButton();
-                volumeSliderVisual = CalculateVolumeSlider();
-                volumeSliderActual = CalculateVolumeSliderActual();
-                housePos = CalculateHousePosition();
-                codeEditorPos = CalculateCodeEditorPosition();
-                
-                stickman.OriginalPosition = CalculateStickmanStartPosition();
-                if (currentState == GameState.Editing || currentState == GameState.Success)
-                {
-                    stickman.Reset();
-                }
+                CurrentInput += c;
             }
-
-            Vector2 mousePos = Raylib.GetMousePosition();
-            bool mouseOverExecute = Raylib.CheckCollisionPointRec(mousePos, executeButton);
-            bool mouseOverAchievements = Raylib.CheckCollisionPointRec(mousePos, achievementsButton);
-            bool mouseOverVolume = Raylib.CheckCollisionPointRec(mousePos, volumeSliderActual);
-            
-            executeButtonColor = mouseOverExecute ? Color.Gray : Color.LightGray;
-            achievementsButtonColor = mouseOverAchievements ? Color.Gray : Color.LightGray;
-
-            if (Raylib.IsMouseButtonDown(MouseButton.Left) && mouseOverVolume)
-            {
-                float relativeY = mousePos.Y - volumeSliderActual.Y;
-                volume = Math.Clamp(1.0f - (relativeY / volumeSliderActual.Height), 0f, 1f);
-                Raylib.SetMasterVolume(volume);
-            }
-
-            // Achievements button
-            if (mouseOverAchievements && Raylib.IsMouseButtonPressed(MouseButton.Left))
-            {
-                showAchievements = !showAchievements;
-            }
-
-            // Close achievements when clicking outside
-            if (showAchievements && Raylib.IsMouseButtonPressed(MouseButton.Left))
-            {
-                Rectangle achievementsPanel = new Rectangle(
-                    (screenWidth - 400) / 2,
-                    (screenHeight - 500) / 2,
-                    400,
-                    500
-                );
-                
-                if (!Raylib.CheckCollisionPointRec(mousePos, achievementsPanel) && 
-                    !Raylib.CheckCollisionPointRec(mousePos, achievementsButton))
-                {
-                    showAchievements = false;
-                }
-            }
-
-            float mouseWheel = Raylib.GetMouseWheelMove();
-            if (Raylib.CheckCollisionPointRec(mousePos, codeEditor))
-            {
-                scrollOffset -= mouseWheel * 20;
-                float maxScroll = Math.Max(0, codeLines.Count * LINE_HEIGHT - codeEditor.Height + 50);
-                scrollOffset = Math.Clamp(scrollOffset, 0, maxScroll);
-            }
-
-            // Quick delivery update
-            if (quickDeliveryActive)
-            {
-                quickDeliveryTimer -= Raylib.GetFrameTime();
-                
-                // Check of stickman bijna bij de target is (80% van de weg)
-                float distanceToTarget = Vector2.Distance(stickman.Position, quickDeliveryTargetPos);
-                float totalDistance = Vector2.Distance(stickman.OriginalPosition, quickDeliveryTargetPos);
-                
-                if (distanceToTarget < totalDistance * 0.2f && rand.Next(0, 20) == 0 && !stickman.IsFalling)
-                {
-                    // Start val - 5% kans
-                    currentState = GameState.Falling;
-                    letterDropPosition = new Vector2(stickman.Position.X, codeEditor.Y + codeEditor.Height + 50);
-                    stickman.StartFall(stickman.Position, letterDropPosition, quickDeliveryLetter);
-                    statusMessage = "Oh no! Stickman dropped the letter in the water!";
-                    quickDeliveryActive = false;
-                }
-                else if (quickDeliveryTimer <= 0 && !stickman.IsFalling)
-                {
-                    quickDeliveryActive = false;
-                    currentState = GameState.Editing;
-                    stickman.Reset();
-                    statusMessage = "Letter delivered!";
-                }
-            }
-
-            if (currentState == GameState.Editing)
-            {
-                int key = Raylib.GetCharPressed();
-                while (key > 0)
-                {
-                    char c = (char)key;
-                    if (char.IsLetterOrDigit(c) || c == ' ' || c == '.' || c == ',' || c == ';' || 
-                        c == '(' || c == ')' || c == '{' || c == '}' || c == '=' || 
-                        c == '+' || c == '-' || c == '*' || c == '/')
-                    {
-                        inputText += c;
-                        
-                        // Check first letter achievement
-                        if (!hasTypedFirstLetter && char.IsLetter(c))
-                        {
-                            hasTypedFirstLetter = true;
-                            CheckAchievements();
-                        }
-                        
-                        // Start quick delivery voor letters
-                        if (char.IsLetter(c) && !quickDeliveryActive && currentState == GameState.Editing)
-                        {
-                            quickDeliveryActive = true;
-                            quickDeliveryLetter = c.ToString();
-                            quickDeliveryTimer = 1.5f; // Iets langer voor betere animatie
-                            quickDeliveryTargetPos = new Vector2(
-                                codeEditor.X + codeEditor.Width * 0.3f,
-                                codeEditor.Y + 20 + codeLines.Count * LINE_HEIGHT
-                            );
-                            currentState = GameState.QuickDelivery;
-                            statusMessage = "Quick delivery!";
-                        }
-                    }
-                    key = Raylib.GetCharPressed();
-                }
-
-                if (Raylib.IsKeyPressed(KeyboardKey.Backspace) && inputText.Length > 0)
-                    inputText = inputText.Substring(0, inputText.Length - 1);
-
-                if (Raylib.IsKeyPressed(KeyboardKey.Enter))
-                {
-                    if (!string.IsNullOrWhiteSpace(inputText))
-                    {
-                        codeLines.Add(inputText);
-                        totalLinesWritten++;
-                        CheckAchievements();
-                        inputText = "";
-                    }
-                }
-
-                if (mouseOverExecute && Raylib.IsMouseButtonPressed(MouseButton.Left))
-                {
-                    if (!string.IsNullOrWhiteSpace(inputText))
-                    {
-                        codeLines.Add(inputText);
-                        totalLinesWritten++;
-                        CheckAchievements();
-                        inputText = "";
-                    }
-                    
-                    if (codeLines.Count > 0)
-                    {
-                        currentState = GameState.Delivering;
-                        statusMessage = "Stickman is delivering your code...";
-                        currentLine = 0;
-                        currentWordIndex = 0;
-                        currentLineWords = new List<string>(codeLines[0].Split(' '));
-                        stickman.CurrentWord = currentLineWords[0];
-                    }
-                    else
-                    {
-                        statusMessage = "Write some code first!";
-                    }
-                }
-            }
-
-            // Update stickman based on state
-            if (currentState == GameState.QuickDelivery)
-            {
-                stickman.Update(currentState, quickDeliveryTargetPos);
-            }
-            else if (currentState == GameState.Falling)
-            {
-                stickman.Update(currentState, Vector2.Zero);
-                if (stickman.FallTimer <= 0)
-                {
-                    currentState = GameState.Editing;
-                    stickman.Reset();
-                    statusMessage = "The letter sank in the water!";
-                    
-                    // Splash effect in het water
-                    CreateSplashEffect(letterDropPosition);
-                }
-            }
-            else
-            {
-                stickman.Update(currentState, new Vector2(codeEditorPos.X + codeEditor.Width * 0.3f, stickman.Position.Y));
-            }
-
-            // Normale delivery logic
-            if (currentState == GameState.Delivering)
-            {
-                if (stickman.Position.X <= codeEditorPos.X + codeEditor.Width * 0.3f)
-                {
-                    currentState = GameState.Returning;
-                    statusMessage = $"Delivered: {stickman.CurrentWord}";
-                    
-                    currentWordIndex++;
-                    if (currentWordIndex < currentLineWords.Count)
-                    {
-                        stickman.CurrentWord = currentLineWords[currentWordIndex];
-                    }
-                    else
-                    {
-                        currentLine++;
-                        if (currentLine < codeLines.Count)
-                        {
-                            currentLineWords = new List<string>(codeLines[currentLine].Split(' '));
-                            currentWordIndex = 0;
-                            stickman.CurrentWord = currentLineWords[0];
-                        }
-                        else
-                        {
-                            currentState = GameState.Success;
-                            statusMessage = "All code delivered successfully!";
-                        }
-                    }
-                }
-            }
-            else if (currentState == GameState.Returning)
-            {
-                if (stickman.Position.X >= stickman.OriginalPosition.X)
-                {
-                    if (currentState != GameState.Success)
-                    {
-                        currentState = GameState.Delivering;
-                        statusMessage = $"Getting next word: {stickman.CurrentWord}";
-                    }
-                }
-            }
-            else if (currentState == GameState.Success)
-            {
-                if (Raylib.IsKeyPressed(KeyboardKey.Space))
-                {
-                    currentState = GameState.Editing;
-                    stickman.Reset();
-                    codeLines.Clear();
-                    inputText = "";
-                    statusMessage = "Type code in the editor...";
-                    scrollOffset = 0;
-                }
-            }
-
-            // Update achievement display times
-            UpdateAchievementDisplays();
-
-            Raylib.BeginDrawing();
-            Raylib.ClearBackground(new Color(30, 30, 40, 255));
-
-            Raylib.DrawRectangle(0, 0, screenWidth, screenHeight, new Color(40, 44, 52, 255));
-
-            Raylib.DrawRectangleRec(codeEditor, new Color(25, 25, 35, 255));
-            Raylib.DrawRectangleLines((int)codeEditor.X, (int)codeEditor.Y, (int)codeEditor.Width, (int)codeEditor.Height, new Color(60, 60, 80, 255));
-            
-            DrawWaterWaves(codeEditor);
-            
-            DrawHouse(housePos);
-            
-            Raylib.DrawRectangle((int)codeEditor.X, (int)codeEditor.Y, 40, (int)codeEditor.Height, new Color(35, 35, 45, 255));
-            
-            int visibleLines = (int)(codeEditor.Height / LINE_HEIGHT);
-            int startLine = (int)(scrollOffset / LINE_HEIGHT);
-            int endLine = Math.Min(startLine + visibleLines + 1, codeLines.Count);
-            
-            for (int i = startLine; i < endLine; i++)
-            {
-                float yPos = codeEditor.Y + 20 + (i - startLine) * LINE_HEIGHT - (scrollOffset % LINE_HEIGHT);
-                
-                if (yPos >= codeEditor.Y && yPos <= codeEditor.Y + codeEditor.Height - LINE_HEIGHT)
-                {
-                    Color lineColor = i == currentLine && currentState == GameState.Delivering ? Color.Green : new Color(200, 200, 200, 255);
-                    
-                    Raylib.DrawText($"{i + 1}", (int)codeEditor.X + 10, (int)yPos, 18, new Color(100, 100, 120, 255));
-                    Raylib.DrawText(codeLines[i], (int)codeEditor.X + 45, (int)yPos, 18, lineColor);
-                }
-            }
-
-            float currentInputY = codeEditor.Y + 20 + (codeLines.Count - startLine) * LINE_HEIGHT - (scrollOffset % LINE_HEIGHT);
-            if (currentInputY >= codeEditor.Y && currentInputY <= codeEditor.Y + codeEditor.Height - LINE_HEIGHT)
-            {
-                Raylib.DrawText($"{codeLines.Count + 1}:", (int)codeEditor.X + 10, (int)currentInputY, 18, new Color(100, 100, 120, 255));
-                Raylib.DrawText($"{inputText}_", (int)codeEditor.X + 45, (int)currentInputY, 18, Color.White);
-            }
-
-            if (codeLines.Count * LINE_HEIGHT > codeEditor.Height)
-            {
-                float scrollbarHeight = codeEditor.Height * (codeEditor.Height / (codeLines.Count * LINE_HEIGHT));
-                float scrollbarY = codeEditor.Y + (scrollOffset / (codeLines.Count * LINE_HEIGHT)) * (codeEditor.Height - scrollbarHeight);
-                Raylib.DrawRectangle((int)codeEditor.X + (int)codeEditor.Width - 10, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(100, 100, 120, 255));
-            }
-
-            stickman.Draw();
-
-            // Draw splash effect if letter fell in water
-            if (currentState == GameState.Falling)
-            {
-                DrawSplashEffect(letterDropPosition, 1.0f - stickman.FallTimer);
-            }
-
-            // Execute button
-            Raylib.DrawRectangleRec(executeButton, executeButtonColor);
-            Raylib.DrawRectangleLines((int)executeButton.X, (int)executeButton.Y, (int)executeButton.Width, (int)executeButton.Height, Color.DarkGray);
-            Raylib.DrawText("Execute", (int)executeButton.X + 15, (int)executeButton.Y + 15, 20, Color.Black);
-
-            // Achievements button
-            Raylib.DrawRectangleRec(achievementsButton, achievementsButtonColor);
-            Raylib.DrawRectangleLines((int)achievementsButton.X, (int)achievementsButton.Y, (int)achievementsButton.Width, (int)achievementsButton.Height, Color.DarkGray);
-            Raylib.DrawText("Achievements", (int)achievementsButton.X + 10, (int)achievementsButton.Y + 15, 16, Color.Black);
-
-            // Volume slider
-            Raylib.DrawText("Volume", (int)volumeSliderVisual.X, (int)volumeSliderVisual.Y - 25, 20, Color.White);
-            Raylib.DrawRectangleRec(volumeSliderVisual, new Color(60, 60, 80, 255));
-            float fillHeight = volumeSliderVisual.Height * volume;
-            Raylib.DrawRectangle((int)volumeSliderVisual.X, (int)(volumeSliderVisual.Y + volumeSliderVisual.Height - fillHeight), 
-                               (int)volumeSliderVisual.Width, (int)fillHeight, Color.Green);
-            Raylib.DrawRectangleLines((int)volumeSliderVisual.X, (int)volumeSliderVisual.Y, 
-                                    (int)volumeSliderVisual.Width, (int)volumeSliderVisual.Height, Color.White);
-            Raylib.DrawText($"{(int)(volume * 100)}%", (int)volumeSliderVisual.X + (int)volumeSliderVisual.Width + 10, 
-                          (int)volumeSliderVisual.Y, 20, Color.White);
-
-
-            Raylib.EndDrawing();
+            key = Raylib.GetCharPressed();
         }
 
-        Raylib.CloseWindow();
-    }
+        if (Raylib.IsKeyPressed(KeyboardKey.Backspace) && CurrentInput.Length > 0)
+            CurrentInput = CurrentInput.Substring(0, CurrentInput.Length - 1);
 
-    static void CreateSplashEffect(Vector2 position)
-    {
-        // Hier kun je later een splash particle effect toevoegen
+        if (Raylib.IsKeyPressed(KeyboardKey.Enter))
+        {
+            if (!string.IsNullOrWhiteSpace(CurrentInput))
+            {
+                Lines.Add(CurrentInput);
+                CurrentInput = "";
+            }
+        }
     }
-
-    static void DrawSplashEffect(Vector2 position, float progress)
+    
+    public void HandleScroll(Vector2 mousePos)
     {
-        // Eenvoudige splash animatie
-        int splashSize = (int)(20 * progress);
-        Color splashColor = new Color(255, 255, 255, (int)(150 * (1.0f - progress)));
+        if (Raylib.CheckCollisionPointRec(mousePos, Bounds))
+        {
+            float mouseWheel = Raylib.GetMouseWheelMove();
+            ScrollOffset -= mouseWheel * 20;
+            float maxScroll = Math.Max(0, Lines.Count * LINE_HEIGHT - Bounds.Height + 50);
+            ScrollOffset = Math.Clamp(ScrollOffset, 0, maxScroll);
+        }
+    }
+    
+    public void Draw()
+    {
+        // Editor background with solid color
+        Raylib.DrawRectangleRec(Bounds, new Color(25, 25, 35, 255));
         
-        Raylib.DrawCircle((int)position.X, (int)position.Y, splashSize, splashColor);
-        Raylib.DrawCircle((int)position.X - 10, (int)position.Y, splashSize - 5, splashColor);
-        Raylib.DrawCircle((int)position.X + 10, (int)position.Y, splashSize - 5, splashColor);
+        // Editor border
+        Raylib.DrawRectangleLines((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height, new Color(60, 60, 80, 255));
+        Raylib.DrawRectangleLines((int)Bounds.X - 1, (int)Bounds.Y - 1, (int)Bounds.Width + 2, (int)Bounds.Height + 2, new Color(20, 20, 30, 255));
+        
+        DrawLineNumbers();
+        DrawCodeLines();
+        DrawCurrentInput();
+        DrawScrollBar();
     }
-
-    static void InitializeAchievements()
+    
+    private void DrawLineNumbers()
     {
-        achievements.Add(new Achievement("First Letter", "Type your first letter", () => hasTypedFirstLetter));
-        achievements.Add(new Achievement("Code Novice", "Write 50 lines of code", () => totalLinesWritten >= 50));
-        achievements.Add(new Achievement("Code Apprentice", "Write 100 lines of code", () => totalLinesWritten >= 100));
-        achievements.Add(new Achievement("Code Journeyman", "Write 250 lines of code", () => totalLinesWritten >= 250));
-        achievements.Add(new Achievement("Code Master", "Write 500 lines of code", () => totalLinesWritten >= 500));
-        achievements.Add(new Achievement("Code Legend", "Write 1000 lines of code", () => totalLinesWritten >= 1000));
+        Raylib.DrawRectangle((int)Bounds.X, (int)Bounds.Y, 40, (int)Bounds.Height, new Color(35, 35, 45, 255));
+        Raylib.DrawLine((int)Bounds.X + 40, (int)Bounds.Y, (int)Bounds.X + 40, (int)Bounds.Y + (int)Bounds.Height, new Color(60, 60, 80, 255));
     }
-
-    static void CheckAchievements()
+    
+    private void DrawCodeLines()
     {
-        foreach (var achievement in achievements)
+        int visibleLines = (int)(Bounds.Height / LINE_HEIGHT);
+        int startLine = (int)(ScrollOffset / LINE_HEIGHT);
+        int endLine = Math.Min(startLine + visibleLines + 1, Lines.Count);
+        
+        for (int i = startLine; i < endLine; i++)
+        {
+            float yPos = Bounds.Y + 20 + (i - startLine) * LINE_HEIGHT - (ScrollOffset % LINE_HEIGHT);
+            
+            if (yPos >= Bounds.Y && yPos <= Bounds.Y + Bounds.Height - LINE_HEIGHT)
+            {
+                Color lineColor = new Color(220, 220, 220, 255);
+                
+                Raylib.DrawText($"{i + 1}", (int)Bounds.X + 10, (int)yPos, 18, new Color(150, 150, 170, 255));
+                Raylib.DrawText(Lines[i], (int)Bounds.X + 45, (int)yPos, 18, lineColor);
+            }
+        }
+    }
+    
+    private void DrawCurrentInput()
+    {
+        int startLine = (int)(ScrollOffset / LINE_HEIGHT);
+        float currentInputY = Bounds.Y + 20 + (Lines.Count - startLine) * LINE_HEIGHT - (ScrollOffset % LINE_HEIGHT);
+        
+        if (currentInputY >= Bounds.Y && currentInputY <= Bounds.Y + Bounds.Height - LINE_HEIGHT)
+        {
+            Raylib.DrawText($"{Lines.Count + 1}:", (int)Bounds.X + 10, (int)currentInputY, 18, new Color(150, 150, 170, 255));
+            
+            // Draw cursor with blinking effect
+            string displayText = CurrentInput;
+            if ((int)(Raylib.GetTime() * 2) % 2 == 0)
+            {
+                displayText += "_";
+            }
+            
+            Raylib.DrawText(displayText, (int)Bounds.X + 45, (int)currentInputY, 18, Color.White);
+        }
+    }
+    
+    private void DrawScrollBar()
+    {
+        if (Lines.Count * LINE_HEIGHT > Bounds.Height)
+        {
+            float scrollbarHeight = Bounds.Height * (Bounds.Height / (Lines.Count * LINE_HEIGHT));
+            float scrollbarY = Bounds.Y + (ScrollOffset / (Lines.Count * LINE_HEIGHT)) * (Bounds.Height - scrollbarHeight);
+            
+            Raylib.DrawRectangle((int)Bounds.X + (int)Bounds.Width - 12, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(80, 80, 100, 255));
+            Raylib.DrawRectangleLines((int)Bounds.X + (int)Bounds.Width - 12, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(120, 120, 140, 255));
+        }
+    }
+    
+    public void Clear()
+    {
+        Lines.Clear();
+        CurrentInput = "";
+        ScrollOffset = 0;
+        CurrentLine = 0;
+    }
+}
+
+class AchievementManager
+{
+    public List<Achievement> Achievements { get; set; } = new List<Achievement>();
+    public bool ShowAchievementsPanel { get; set; }
+    public float AchievementsScrollOffset { get; set; }
+    
+    private int totalLinesWritten = 0;
+    private bool hasTypedFirstLetter = false;
+    private int programsExecuted = 0;
+    private int quickDeliveries = 0;
+    
+    public AchievementManager()
+    {
+        InitializeAchievements();
+    }
+    
+    private void InitializeAchievements()
+    {
+        Achievements.Add(new Achievement("First Letter", "Type your first letter", () => hasTypedFirstLetter));
+        Achievements.Add(new Achievement("Code Novice", "Write 50 lines of code", () => totalLinesWritten >= 50));
+        Achievements.Add(new Achievement("Code Apprentice", "Write 100 lines of code", () => totalLinesWritten >= 100));
+        Achievements.Add(new Achievement("Code Journeyman", "Write 250 lines of code", () => totalLinesWritten >= 250));
+        Achievements.Add(new Achievement("Code Master", "Write 500 lines of code", () => totalLinesWritten >= 500));
+        Achievements.Add(new Achievement("Code Legend", "Write 1000 lines of code", () => totalLinesWritten >= 1000));
+        Achievements.Add(new Achievement("First Program", "Execute your first program", () => programsExecuted >= 1));
+        Achievements.Add(new Achievement("Productive Programmer", "Execute 5 programs", () => programsExecuted >= 5));
+        Achievements.Add(new Achievement("Quick Fingers", "Make 10 quick deliveries", () => quickDeliveries >= 10));
+        Achievements.Add(new Achievement("Code Marathon", "Write 2000 lines of code", () => totalLinesWritten >= 2000));
+    }
+    
+    public void CheckAchievements(string inputText, int linesWritten)
+    {
+        totalLinesWritten = linesWritten;
+        
+        if (!hasTypedFirstLetter && !string.IsNullOrEmpty(inputText) && inputText.Any(char.IsLetter))
+        {
+            hasTypedFirstLetter = true;
+        }
+        
+        foreach (var achievement in Achievements)
         {
             if (!achievement.IsUnlocked && achievement.CheckCondition())
             {
@@ -576,10 +336,22 @@ class Program
             }
         }
     }
-
-    static void UpdateAchievementDisplays()
+    
+    public void MarkProgramExecuted()
     {
-        foreach (var achievement in achievements)
+        programsExecuted++;
+        CheckAchievements("", totalLinesWritten);
+    }
+    
+    public void MarkQuickDelivery()
+    {
+        quickDeliveries++;
+        CheckAchievements("", totalLinesWritten);
+    }
+    
+    public void UpdateAchievementDisplays()
+    {
+        foreach (var achievement in Achievements)
         {
             if (achievement.DisplayTime > 0)
             {
@@ -587,150 +359,420 @@ class Program
             }
         }
     }
-
-    static void DrawAchievementNotifications()
+    
+    public void HandleAchievementsScroll(Vector2 mousePos, Rectangle panelBounds)
     {
-        foreach (var achievement in achievements)
+        if (Raylib.CheckCollisionPointRec(mousePos, panelBounds))
+        {
+            float mouseWheel = Raylib.GetMouseWheelMove();
+            AchievementsScrollOffset -= mouseWheel * 20;
+            float maxScroll = Math.Max(0, Achievements.Count * 65 - panelBounds.Height + 120);
+            AchievementsScrollOffset = Math.Clamp(AchievementsScrollOffset, 0, maxScroll);
+        }
+    }
+    
+    public void DrawAchievementsPanel(int screenWidth, int screenHeight)
+    {
+        if (!ShowAchievementsPanel) return;
+        
+        int panelWidth = 500;
+        int panelHeight = 600;
+        int panelX = (screenWidth - panelWidth) / 2;
+        int panelY = (screenHeight - panelHeight) / 2;
+
+        Rectangle panelBounds = new Rectangle(panelX, panelY, panelWidth, panelHeight);
+        
+        // Handle scrolling
+        Vector2 mousePos = Raylib.GetMousePosition();
+        HandleAchievementsScroll(mousePos, panelBounds);
+        
+        // Panel background
+        Raylib.DrawRectangle(panelX - 2, panelY - 2, panelWidth + 4, panelHeight + 4, new Color(0, 0, 0, 100));
+        Raylib.DrawRectangle(panelX, panelY, panelWidth, panelHeight, new Color(30, 30, 40, 255));
+        Raylib.DrawRectangleLines(panelX, panelY, panelWidth, panelHeight, new Color(80, 60, 120, 255));
+        Raylib.DrawRectangleLines(panelX - 1, panelY - 1, panelWidth + 2, panelHeight + 2, new Color(120, 100, 160, 255));
+        
+        // Title and progress
+        int unlockedCount = Achievements.Count(a => a.IsUnlocked);
+        Raylib.DrawText("ACHIEVEMENTS", panelX + 150, panelY + 25, 32, Color.Gold);
+        Raylib.DrawText($"{unlockedCount}/{Achievements.Count} Unlocked", panelX + 180, panelY + 60, 20, Color.LightGray);
+        Raylib.DrawLine(panelX + 50, panelY + 85, panelX + panelWidth - 50, panelY + 85, new Color(80, 60, 120, 255));
+        
+        // Achievements list with scrolling
+        int yOffset = 100;
+        int startIndex = (int)(AchievementsScrollOffset / 65);
+        int visibleCount = (int)((panelHeight - 120) / 65);
+        
+        for (int i = startIndex; i < Math.Min(startIndex + visibleCount + 1, Achievements.Count); i++)
+        {
+            var achievement = Achievements[i];
+            float itemY = panelY + yOffset + (i - startIndex) * 65 - (AchievementsScrollOffset % 65);
+            
+            if (itemY >= panelY + 100 && itemY <= panelY + panelHeight - 50)
+            {
+                Color bgColor = achievement.IsUnlocked ? new Color(60, 100, 60, 100) : new Color(60, 60, 60, 100);
+                Color borderColor = achievement.IsUnlocked ? new Color(100, 200, 100, 255) : new Color(100, 100, 100, 255);
+                Color textColor = achievement.IsUnlocked ? new Color(144, 238, 144, 255) : Color.LightGray;
+                Color descColor = achievement.IsUnlocked ? new Color(200, 255, 200, 255) : new Color(180, 180, 180, 255);
+                string status = achievement.IsUnlocked ? "UNLOCKED" : "LOCKED";
+                Color statusColor = achievement.IsUnlocked ? Color.Gold : Color.Gray;
+                
+                // Achievement item background
+                Raylib.DrawRectangle(panelX + 20, (int)itemY, panelWidth - 40, 50, bgColor);
+                Raylib.DrawRectangleLines(panelX + 20, (int)itemY, panelWidth - 40, 50, borderColor);
+                
+                Raylib.DrawText($"{achievement.Name}", panelX + 35, (int)itemY + 5, 20, textColor);
+                Raylib.DrawText(achievement.Description, panelX + 35, (int)itemY + 28, 14, descColor);
+                Raylib.DrawText(status, panelX + panelWidth - 120, (int)itemY + 15, 16, statusColor);
+            }
+        }
+        
+        // Scroll bar for achievements
+        if (Achievements.Count * 65 > panelHeight - 120)
+        {
+            float scrollbarHeight = (panelHeight - 120) * ((panelHeight - 120) / (Achievements.Count * 65));
+            float scrollbarY = panelY + 100 + (AchievementsScrollOffset / (Achievements.Count * 65)) * (panelHeight - 120 - scrollbarHeight);
+            
+            Raylib.DrawRectangle(panelX + panelWidth - 20, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(80, 80, 100, 255));
+            Raylib.DrawRectangleLines(panelX + panelWidth - 20, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(120, 120, 140, 255));
+        }
+        
+        // Close hint
+        Raylib.DrawText("Press ESC or click outside to close", panelX + 120, panelY + panelHeight - 30, 16, Color.Gray);
+    }
+    
+    public void DrawAchievementNotifications(int screenWidth, int screenHeight)
+    {
+        foreach (var achievement in Achievements)
         {
             if (achievement.DisplayTime > 0)
             {
                 float alpha = Math.Clamp(achievement.DisplayTime / 1.0f, 0f, 1f);
-                Color bgColor = new Color(0, 100, 0, (int)(200 * alpha));
+                Color bgColor = new Color(40, 80, 40, (int)(220 * alpha));
+                Color borderColor = new Color(120, 200, 120, (int)(255 * alpha));
                 Color textColor = new Color(255, 255, 255, (int)(255 * alpha));
+                Color goldColor = new Color(255, 215, 0, (int)(255 * alpha));
                 
                 int centerX = screenWidth / 2;
-                int centerY = screenHeight / 2;
+                int centerY = screenHeight / 3;
                 
+                // Notification background with shadow
+                Raylib.DrawRectangle(centerX - 210, centerY - 70, 420, 140, new Color(0, 0, 0, (int)(100 * alpha)));
                 Raylib.DrawRectangle(centerX - 200, centerY - 60, 400, 120, bgColor);
-                Raylib.DrawRectangleLines(centerX - 200, centerY - 60, 400, 120, Color.Gold);
+                Raylib.DrawRectangleLines(centerX - 200, centerY - 60, 400, 120, borderColor);
                 
-                Raylib.DrawText("ACHIEVEMENT UNLOCKED!", centerX - 180, centerY - 40, 24, Color.Gold);
-                Raylib.DrawText(achievement.Name, centerX - 180, centerY - 10, 32, textColor);
-                Raylib.DrawText(achievement.Description, centerX - 180, centerY + 30, 20, textColor);
+                Raylib.DrawText("ACHIEVEMENT UNLOCKED!", centerX - 120, centerY - 35, 22, goldColor);
+                Raylib.DrawText(achievement.Name, centerX - 120, centerY - 5, 28, textColor);
+                Raylib.DrawText(achievement.Description, centerX - 120, centerY + 25, 18, textColor);
             }
         }
     }
+}
 
-    static void DrawAchievementsPanel()
+class UIButton
+{
+    public Rectangle Bounds { get; set; }
+    public string Text { get; set; }
+    public Color NormalColor { get; set; } = new Color(80, 100, 150, 255);
+    public Color HoverColor { get; set; } = new Color(100, 130, 190, 255);
+    public Color TextColor { get; set; } = Color.White;
+    public Color BorderColor { get; set; } = new Color(120, 150, 200, 255);
+    public bool HasShadow { get; set; } = true;
+    
+    public UIButton(Rectangle bounds, string text)
     {
-        int panelWidth = 400;
-        int panelHeight = 500;
-        int panelX = (screenWidth - panelWidth) / 2;
-        int panelY = (screenHeight - panelHeight) / 2;
+        Bounds = bounds;
+        Text = text;
+    }
+    
+    public bool IsMouseOver()
+    {
+        return Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), Bounds);
+    }
+    
+    public void Draw()
+    {
+        Color color = IsMouseOver() ? HoverColor : NormalColor;
         
-        // Background
-        Raylib.DrawRectangle(panelX, panelY, panelWidth, panelHeight, new Color(25, 25, 35, 240));
-        Raylib.DrawRectangleLines(panelX, panelY, panelWidth, panelHeight, Color.Gold);
-        
-        // Title
-        Raylib.DrawText("ACHIEVEMENTS", panelX + 100, panelY + 20, 28, Color.Gold);
-        
-        // Achievements list
-        int yOffset = 70;
-        foreach (var achievement in achievements)
+        if (HasShadow)
         {
-            Color color = achievement.IsUnlocked ? Color.Green : Color.Gray;
-            string status = achievement.IsUnlocked ? "UNLOCKED" : "LOCKED";
-            
-            Raylib.DrawText($"{achievement.Name}", panelX + 20, panelY + yOffset, 20, color);
-            Raylib.DrawText(achievement.Description, panelX + 20, panelY + yOffset + 25, 16, color);
-            Raylib.DrawText(status, panelX + panelWidth - 100, panelY + yOffset, 18, color);
-            
-            yOffset += 60;
+            Raylib.DrawRectangle((int)Bounds.X + 3, (int)Bounds.Y + 3, (int)Bounds.Width, (int)Bounds.Height, new Color(0, 0, 0, 100));
         }
         
-        // Close hint
-        Raylib.DrawText("Click outside to close", panelX + 100, panelY + panelHeight - 30, 16, Color.Gray);
+        Raylib.DrawRectangleRec(Bounds, color);
+        Raylib.DrawRectangleLines((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height, BorderColor);
+        
+        int textWidth = Raylib.MeasureText(Text, 20);
+        int textX = (int)Bounds.X + ((int)Bounds.Width - textWidth) / 2;
+        Raylib.DrawText(Text, textX, (int)Bounds.Y + 12, 20, TextColor);
+        
+        if (IsMouseOver())
+        {
+            Raylib.DrawRectangleLines((int)Bounds.X - 1, (int)Bounds.Y - 1, (int)Bounds.Width + 2, (int)Bounds.Height + 2, Color.White);
+        }
     }
+}
 
-    static Rectangle CalculateAchievementsButton()
+class VolumeSlider
+{
+    public Rectangle VisualBounds { get; set; }
+    public Rectangle ActualBounds { get; set; }
+    public float Volume { get; set; } = 0.5f;
+    
+    public VolumeSlider(Rectangle visualBounds, Rectangle actualBounds)
     {
-        return new Rectangle(
-            screenWidth * 0.83f,
-            screenHeight * 0.10f,
-            120,
-            40
-        );
+        VisualBounds = visualBounds;
+        ActualBounds = actualBounds;
     }
-
-    static Rectangle CalculateCodeEditor()
+    
+    public void Update()
     {
-        return new Rectangle(
-            screenWidth * 0.04f,
-            screenHeight * 0.125f,
-            screenWidth * (CODE_EDITOR_WIDTH_PERCENT / 100f),
-            screenHeight * (CODE_EDITOR_HEIGHT_PERCENT / 100f)
-        );
+        Vector2 mousePos = Raylib.GetMousePosition();
+        if (Raylib.IsMouseButtonDown(MouseButton.Left) && Raylib.CheckCollisionPointRec(mousePos, ActualBounds))
+        {
+            float relativeY = mousePos.Y - ActualBounds.Y;
+            Volume = Math.Clamp(1.0f - (relativeY / ActualBounds.Height), 0f, 1f);
+            Raylib.SetMasterVolume(Volume);
+        }
     }
-
-    static Rectangle CalculateExecuteButton()
+    
+    public void Draw()
     {
-        return new Rectangle(
-            screenWidth * 0.83f,
-            screenHeight * 0.037f,
-            120,
-            40
-        );
+        // Background
+        Raylib.DrawRectangleRec(VisualBounds, new Color(50, 50, 70, 255));
+        Raylib.DrawRectangleLines((int)VisualBounds.X, (int)VisualBounds.Y, 
+                                (int)VisualBounds.Width, (int)VisualBounds.Height, new Color(100, 100, 120, 255));
+        
+        // Fill
+        float fillHeight = VisualBounds.Height * Volume;
+        Color fillColor = new Color(50, 200, 50, 255);
+        
+        Raylib.DrawRectangle((int)VisualBounds.X, (int)(VisualBounds.Y + VisualBounds.Height - fillHeight), 
+                           (int)VisualBounds.Width, (int)fillHeight, fillColor);
+        
+        // Marker
+        float markerY = VisualBounds.Y + VisualBounds.Height - fillHeight;
+        Raylib.DrawRectangle((int)VisualBounds.X - 5, (int)markerY - 2, (int)VisualBounds.Width + 10, 4, Color.White);
+        
+        // Text
+        Raylib.DrawText("VOLUME", (int)VisualBounds.X, (int)VisualBounds.Y - 30, 20, Color.White);
+        Raylib.DrawText($"{(int)(Volume * 100)}%", (int)VisualBounds.X + (int)VisualBounds.Width + 15, 
+                      (int)VisualBounds.Y + (int)VisualBounds.Height / 2 - 10, 20, Color.White);
     }
+}
 
-    static Rectangle CalculateVolumeSlider()
+class FileManager
+{
+    public static bool SaveCodeToFile(List<string> lines, string filename = "code.txt")
     {
-        return new Rectangle(
-            screenWidth * 0.83f,
-            screenHeight * 0.18f,
-            150,
-            20
-        );
+        try
+        {
+            string directory = "saves";
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            string filePath = Path.Combine(directory, filename);
+            File.WriteAllLines(filePath, lines);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving file: {ex.Message}");
+            return false;
+        }
     }
 
-    static Rectangle CalculateVolumeSliderActual()
+    public static List<string> LoadCodeFromFile(string filename = "code.txt")
     {
-        return new Rectangle(
-            screenWidth * 0.83f,
-            screenHeight * 0.173f,
-            150,
-            30
-        );
+        try
+        {
+            string filePath = Path.Combine("saves", filename);
+            if (File.Exists(filePath))
+            {
+                return File.ReadAllLines(filePath).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading file: {ex.Message}");
+        }
+        return new List<string>();
     }
+}
 
-    static Vector2 CalculateHousePosition()
+class OutputWindow
+{
+    public bool IsVisible { get; set; }
+    public string OutputText { get; set; } = "";
+    public Rectangle Bounds { get; set; }
+    public float ScrollOffset { get; set; }
+    
+    public OutputWindow()
     {
-        return new Vector2(screenWidth * 0.75f, screenHeight * 0.625f);
+        IsVisible = false;
+        Bounds = new Rectangle(200, 100, 800, 500);
     }
-
-    static Vector2 CalculateStickmanStartPosition()
+    
+    public void HandleScroll(Vector2 mousePos)
     {
-        return new Vector2(screenWidth * 0.79f, screenHeight * 0.687f);
+        if (IsVisible && Raylib.CheckCollisionPointRec(mousePos, Bounds))
+        {
+            float mouseWheel = Raylib.GetMouseWheelMove();
+            ScrollOffset -= mouseWheel * 20;
+            ScrollOffset = Math.Clamp(ScrollOffset, 0, Math.Max(0, CountLines() * 20 - Bounds.Height + 40));
+        }
     }
-
-    static Vector2 CalculateCodeEditorPosition()
+    
+    private int CountLines()
     {
-        return new Vector2(screenWidth * 0.08f, screenHeight * 0.187f);
+        return OutputText.Split('\n').Length;
     }
+    
+    public void Draw()
+    {
+        if (!IsVisible) return;
+        
+        // Window background with border
+        Raylib.DrawRectangleRec(Bounds, new Color(20, 20, 30, 255));
+        Raylib.DrawRectangleLines((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height, new Color(80, 80, 120, 255));
+        Raylib.DrawRectangleLines((int)Bounds.X - 1, (int)Bounds.Y - 1, (int)Bounds.Width + 2, (int)Bounds.Height + 2, new Color(120, 120, 160, 255));
+        
+        // Title bar
+        Raylib.DrawRectangle((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, 30, new Color(40, 40, 60, 255));
+        Raylib.DrawText("PROGRAM OUTPUT", (int)Bounds.X + 10, (int)Bounds.Y + 5, 20, Color.Gold);
+        
+        // Close button
+        Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 5, 20, 20);
+        Color closeColor = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), closeButton) ? Color.Red : new Color(200, 100, 100, 255);
+        Raylib.DrawRectangleRec(closeButton, closeColor);
+        Raylib.DrawText("X", (int)closeButton.X + 6, (int)closeButton.Y + 2, 16, Color.White);
+        
+        // Output content
+        string[] lines = OutputText.Split('\n');
+        int visibleLines = (int)((Bounds.Height - 40) / 20);
+        int startLine = (int)(ScrollOffset / 20);
+        
+        for (int i = startLine; i < Math.Min(startLine + visibleLines + 1, lines.Length); i++)
+        {
+            float yPos = Bounds.Y + 40 + (i - startLine) * 20 - (ScrollOffset % 20);
+            Raylib.DrawText(lines[i], (int)Bounds.X + 10, (int)yPos, 16, Color.White);
+        }
+        
+        // Scroll bar
+        if (CountLines() * 20 > Bounds.Height - 40)
+        {
+            float scrollbarHeight = (Bounds.Height - 40) * ((Bounds.Height - 40) / (CountLines() * 20));
+            float scrollbarY = Bounds.Y + 40 + (ScrollOffset / (CountLines() * 20)) * (Bounds.Height - 40 - scrollbarHeight);
+            
+            Raylib.DrawRectangle((int)Bounds.X + (int)Bounds.Width - 12, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(80, 80, 100, 255));
+        }
+    }
+    
+    public bool CloseButtonClicked()
+    {
+        if (!IsVisible) return false;
+        
+        Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 5, 20, 20);
+        return Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), closeButton) && Raylib.IsMouseButtonPressed(MouseButton.Left);
+    }
+}
 
-    static void DrawHouse(Vector2 position)
+class TipsWindow
+{
+    public bool IsVisible { get; set; }
+    public Rectangle Bounds { get; set; }
+    
+    private List<string> tips = new List<string>
+    {
+        "💡 Type letters to trigger quick deliveries",
+        "💡 Use 'print \"text\"' to output messages",
+        "💡 Stickman can fall! Be careful with timing",
+        "💡 Execute code to see program output",
+        "💡 Clear the editor to start fresh",
+        "💡 Check achievements for your progress",
+        "💡 More lines = more coding experience",
+        "💡 Quick deliveries help practice typing"
+    };
+    
+    public TipsWindow()
+    {
+        IsVisible = false;
+        Bounds = new Rectangle(300, 150, 600, 400);
+    }
+    
+    public void Draw()
+    {
+        if (!IsVisible) return;
+        
+        // Window background
+        Raylib.DrawRectangleRec(Bounds, new Color(30, 30, 45, 255));
+        Raylib.DrawRectangleLines((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height, new Color(80, 80, 120, 255));
+        
+        // Title
+        Raylib.DrawText("CODING TIPS", (int)Bounds.X + 220, (int)Bounds.Y + 20, 28, Color.Gold);
+        Raylib.DrawLine((int)Bounds.X + 50, (int)Bounds.Y + 60, (int)Bounds.X + 550, (int)Bounds.Y + 60, new Color(80, 80, 120, 255));
+        
+        // Tips
+        for (int i = 0; i < tips.Count; i++)
+        {
+            Raylib.DrawText(tips[i], (int)Bounds.X + 50, (int)Bounds.Y + 80 + i * 40, 18, Color.White);
+        }
+        
+        // Close button
+        Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 15, 20, 20);
+        Color closeColor = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), closeButton) ? Color.Red : new Color(200, 100, 100, 255);
+        Raylib.DrawRectangleRec(closeButton, closeColor);
+        Raylib.DrawText("X", (int)closeButton.X + 6, (int)closeButton.Y + 2, 16, Color.White);
+    }
+    
+    public bool CloseButtonClicked()
+    {
+        if (!IsVisible) return false;
+        
+        Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 15, 20, 20);
+        return Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), closeButton) && Raylib.IsMouseButtonPressed(MouseButton.Left);
+    }
+}
+
+class EnvironmentRenderer
+{
+    public static void DrawHouse(Vector2 position)
     {
         int x = (int)position.X;
         int y = (int)position.Y;
         
-        Raylib.DrawRectangle(x - 60, y, 120, 80, Color.Brown);
-        Raylib.DrawTriangle(new Vector2(x - 70, y), new Vector2(x + 70, y), new Vector2(x, y - 60), Color.Red);
-        Raylib.DrawRectangle(x - 15, y + 20, 30, 60, new Color(101, 67, 33, 255));
+        // Shadow
+        Raylib.DrawRectangle(x - 55, y + 5, 110, 80, new Color(0, 0, 0, 100));
+        
+        // Main house - different color from door
+        Raylib.DrawRectangle(x - 60, y, 120, 80, new Color(120, 80, 40, 255)); // Lighter brown for house
+        Raylib.DrawTriangle(new Vector2(x - 70, y), new Vector2(x + 70, y), new Vector2(x, y - 60), new Color(140, 40, 40, 255)); // Darker red roof
+        
+        // Door - different color from house
+        Raylib.DrawRectangle(x - 15, y + 20, 30, 60, new Color(80, 50, 20, 255)); // Darker brown for door
         Raylib.DrawCircle(x, y + 50, 3, Color.Gold);
-        Raylib.DrawRectangle(x - 45, y + 15, 25, 25, new Color(135, 206, 235, 255));
-        Raylib.DrawRectangle(x + 20, y + 15, 25, 25, new Color(135, 206, 235, 255));
-        Raylib.DrawRectangleLines(x - 45, y + 15, 25, 25, Color.Black);
-        Raylib.DrawRectangleLines(x + 20, y + 15, 25, 25, Color.Black);
-        Raylib.DrawLine(x - 32, y + 15, x - 32, y + 40, Color.Black);
-        Raylib.DrawLine(x - 45, y + 27, x - 20, y + 27, Color.Black);
-        Raylib.DrawLine(x + 33, y + 15, x + 33, y + 40, Color.Black);
-        Raylib.DrawLine(x + 20, y + 27, x + 45, y + 27, Color.Black);
+        
+        // Windows
+        DrawWindow(x - 45, y + 15);
+        DrawWindow(x + 20, y + 15);
+        
         Raylib.DrawText("Stickman\n   Home", x - 40, y + 90, 14, Color.White);
     }
-
-    static void DrawWaterWaves(Rectangle editor)
+    
+    private static void DrawWindow(int x, int y)
     {
-        int startY = (int)editor.Y + (int)editor.Height + 10;
+        Raylib.DrawRectangle(x, y, 25, 25, new Color(135, 206, 235, 200));
+        Raylib.DrawRectangleLines(x, y, 25, 25, Color.Black);
+        Raylib.DrawLine(x + 12, y, x + 12, y + 25, Color.Black);
+        Raylib.DrawLine(x, y + 12, x + 25, y + 12, Color.Black);
+    }
+    
+    public static void DrawWaterWaves(Rectangle editor)
+    {
+        // Move water higher up - start closer to editor bottom
+        int startY = (int)editor.Y + (int)editor.Height - 10; // Moved up by 20 pixels
         for (int i = 0; i < 5; i++)
         {
             int y = startY + i * 8;
@@ -741,5 +783,562 @@ class Program
                 Raylib.DrawCircle(x, y + (int)waveOffset, 8, waveColor);
             }
         }
+    }
+    
+    public static void DrawSplashEffect(Vector2 position, float progress)
+    {
+        int splashSize = (int)(20 * progress);
+        Color splashColor = new Color(255, 255, 255, (int)(150 * (1.0f - progress)));
+        
+        Raylib.DrawCircle((int)position.X, (int)position.Y, splashSize, splashColor);
+        Raylib.DrawCircle((int)position.X - 10, (int)position.Y, splashSize - 5, splashColor);
+        Raylib.DrawCircle((int)position.X + 10, (int)position.Y, splashSize - 5, splashColor);
+    }
+}
+
+// Simple code interpreter
+class CodeInterpreter
+{
+    public static string ExecuteCode(List<string> codeLines)
+    {
+        var output = new List<string>();
+        output.Add("=== Program Output ===");
+        
+        foreach (var line in codeLines)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            
+            string trimmedLine = line.Trim();
+            
+            // Simple print statement
+            if (trimmedLine.StartsWith("print") || trimmedLine.StartsWith("echo"))
+            {
+                string content = trimmedLine.Substring(trimmedLine.IndexOf(' ') + 1).Trim();
+                if (content.StartsWith("\"") && content.EndsWith("\""))
+                {
+                    output.Add(content.Substring(1, content.Length - 2));
+                }
+                else
+                {
+                    output.Add($"[Printed: {content}]");
+                }
+            }
+            // Simple calculation
+            else if (trimmedLine.Contains("+") || trimmedLine.Contains("-") || trimmedLine.Contains("*") || trimmedLine.Contains("/"))
+            {
+                try
+                {
+                    // Very basic math evaluation
+                    var dataTable = new System.Data.DataTable();
+                    var result = dataTable.Compute(trimmedLine, "");
+                    output.Add($"{trimmedLine} = {result}");
+                }
+                catch
+                {
+                    output.Add($"[Calculation: {trimmedLine}]");
+                }
+            }
+            // Variable assignment
+            else if (trimmedLine.Contains("="))
+            {
+                output.Add($"[Variable set: {trimmedLine}]");
+            }
+            // Comment
+            else if (trimmedLine.StartsWith("//") || trimmedLine.StartsWith("#"))
+            {
+                output.Add($"[Comment: {trimmedLine}]");
+            }
+            else
+            {
+                output.Add($"[Executed: {trimmedLine}]");
+            }
+        }
+        
+        output.Add("=== End of Output ===");
+        return string.Join("\n", output);
+    }
+}
+
+class Program
+{
+    static int screenWidth = 1400;
+    static int screenHeight = 900;
+    const int CODE_EDITOR_WIDTH_PERCENT = 70;
+    const int CODE_EDITOR_HEIGHT_PERCENT = 85;
+    
+    static AchievementManager achievementManager = new AchievementManager();
+    static CodeEditor codeEditor;
+    static Stickman stickman;
+    static UIButton executeButton;
+    static UIButton achievementsButton;
+    static UIButton clearButton;
+    static UIButton tipsButton;
+    static UIButton saveButton;
+    static VolumeSlider volumeSlider;
+    static OutputWindow outputWindow = new OutputWindow();
+    static TipsWindow tipsWindow = new TipsWindow();
+    
+    static Random rand = new Random();
+    static bool quickDeliveryActive = false;
+    static string quickDeliveryLetter = "";
+    static float quickDeliveryTimer = 0;
+    static Vector2 quickDeliveryTargetPos;
+    static Vector2 letterDropPosition;
+    
+    static GameState currentState = GameState.Editing;
+    static string statusMessage = "Welcome to Stickman IDE! Type code to begin...";
+    static int lettersDelivered = 0;
+
+    static void Main()
+    {
+        Raylib.InitWindow(screenWidth, screenHeight, "Stickman IDE - Code Delivery Adventure");
+        Raylib.SetWindowState(ConfigFlags.ResizableWindow);
+        Raylib.SetTargetFPS(60);
+        Raylib.SetExitKey(KeyboardKey.Null);
+
+        InitializeComponents();
+        
+        while (!Raylib.WindowShouldClose())
+        {
+            if (Raylib.IsWindowResized())
+            {
+                screenWidth = Raylib.GetScreenWidth();
+                screenHeight = Raylib.GetScreenHeight();
+                UpdateComponentPositions();
+            }
+
+            Update();
+            Draw();
+        }
+
+        Raylib.CloseWindow();
+    }
+
+    static void InitializeComponents()
+    {
+        codeEditor = new CodeEditor(CalculateCodeEditor(), CalculateCodeEditorPosition());
+        stickman = new Stickman(CalculateStickmanStartPosition());
+        executeButton = new UIButton(CalculateExecuteButton(), "Execute Code");
+        achievementsButton = new UIButton(CalculateAchievementsButton(), "Achievements");
+        clearButton = new UIButton(CalculateClearButton(), "Clear Code");
+        tipsButton = new UIButton(CalculateTipsButton(), "Tips");
+        saveButton = new UIButton(CalculateSaveButton(), "Save Code");
+        volumeSlider = new VolumeSlider(CalculateVolumeSlider(), CalculateVolumeSliderActual());
+    }
+
+    static void UpdateComponentPositions()
+    {
+        codeEditor.Bounds = CalculateCodeEditor();
+        codeEditor.Position = CalculateCodeEditorPosition();
+        stickman.OriginalPosition = CalculateStickmanStartPosition();
+        if (currentState == GameState.Editing || currentState == GameState.Success)
+        {
+            stickman.Reset();
+        }
+        executeButton.Bounds = CalculateExecuteButton();
+        achievementsButton.Bounds = CalculateAchievementsButton();
+        clearButton.Bounds = CalculateClearButton();
+        tipsButton.Bounds = CalculateTipsButton();
+        saveButton.Bounds = CalculateSaveButton();
+        volumeSlider.VisualBounds = CalculateVolumeSlider();
+        volumeSlider.ActualBounds = CalculateVolumeSliderActual();
+        outputWindow.Bounds = new Rectangle(screenWidth / 2 - 400, screenHeight / 2 - 250, 800, 500);
+        tipsWindow.Bounds = new Rectangle(screenWidth / 2 - 300, screenHeight / 2 - 200, 600, 400);
+    }
+
+    static void Update()
+    {
+        Vector2 mousePos = Raylib.GetMousePosition();
+        
+        // Handle ESC for panels
+        if (Raylib.IsKeyPressed(KeyboardKey.Escape))
+        {
+            achievementManager.ShowAchievementsPanel = false;
+            outputWindow.IsVisible = false;
+            tipsWindow.IsVisible = false;
+        }
+        
+        // Handle F1 for tips
+        if (Raylib.IsKeyPressed(KeyboardKey.F1))
+        {
+            tipsWindow.IsVisible = !tipsWindow.IsVisible;
+        }
+        
+        volumeSlider.Update();
+        codeEditor.HandleScroll(mousePos);
+        outputWindow.HandleScroll(mousePos);
+        
+        // FIXED: Achievements button - simplified click detection
+        if (Raylib.IsMouseButtonPressed(MouseButton.Left))
+        {
+            if (achievementsButton.IsMouseOver())
+            {
+                achievementManager.ShowAchievementsPanel = !achievementManager.ShowAchievementsPanel;
+                Console.WriteLine("Achievements button clicked!"); // Debug line
+            }
+            else if (clearButton.IsMouseOver())
+            {
+                codeEditor.Clear();
+                statusMessage = "Code editor cleared!";
+            }
+            else if (tipsButton.IsMouseOver())
+            {
+                tipsWindow.IsVisible = !tipsWindow.IsVisible;
+            }
+            else if (executeButton.IsMouseOver())
+            {
+                ExecuteCode();
+            }
+            else if (saveButton.IsMouseOver())
+            {
+                SaveCode();
+            }
+        }
+
+        // Close buttons for windows
+        if (outputWindow.CloseButtonClicked())
+        {
+            outputWindow.IsVisible = false;
+        }
+
+        if (tipsWindow.CloseButtonClicked())
+        {
+            tipsWindow.IsVisible = false;
+        }
+
+        // Close achievements panel when clicking outside
+        if (achievementManager.ShowAchievementsPanel && Raylib.IsMouseButtonPressed(MouseButton.Left))
+        {
+            Rectangle achievementsPanel = new Rectangle(
+                (screenWidth - 500) / 2,
+                (screenHeight - 600) / 2,
+                500,
+                600
+            );
+            
+            if (!Raylib.CheckCollisionPointRec(mousePos, achievementsPanel) && 
+                !Raylib.CheckCollisionPointRec(mousePos, achievementsButton.Bounds))
+            {
+                achievementManager.ShowAchievementsPanel = false;
+            }
+        }
+
+        if (quickDeliveryActive)
+        {
+            UpdateQuickDelivery();
+        }
+
+        if (currentState == GameState.Editing)
+        {
+            UpdateEditingState(mousePos);
+        }
+
+        UpdateStickman();
+        achievementManager.UpdateAchievementDisplays();
+    }
+
+    static void UpdateQuickDelivery()
+    {
+        quickDeliveryTimer -= Raylib.GetFrameTime();
+        
+        if (stickman.Position.X <= quickDeliveryTargetPos.X + 5f)
+        {
+            quickDeliveryActive = false;
+            currentState = GameState.Editing;
+            stickman.Reset();
+            statusMessage = "Quick delivery successful!";
+            lettersDelivered++;
+            achievementManager.MarkQuickDelivery(); // Track quick deliveries for achievements
+        }
+        else if (quickDeliveryTimer <= 0)
+        {
+            quickDeliveryActive = false;
+            currentState = GameState.Editing;
+            stickman.Reset();
+            statusMessage = "Quick delivery timed out!";
+        }
+        
+        // Fall chance - 5% chance to fall
+        float distanceToTarget = Vector2.Distance(stickman.Position, quickDeliveryTargetPos);
+        float totalDistance = Vector2.Distance(stickman.OriginalPosition, quickDeliveryTargetPos);
+        
+        if (distanceToTarget < totalDistance * 0.2f && rand.Next(0, 20) == 0 && !stickman.IsFalling)
+        {
+            currentState = GameState.Falling;
+            letterDropPosition = new Vector2(stickman.Position.X, codeEditor.Bounds.Y + codeEditor.Bounds.Height + 30);
+            stickman.StartFall(stickman.Position, letterDropPosition, quickDeliveryLetter);
+            statusMessage = "Oh no! Stickman dropped the letter in the water!";
+            quickDeliveryActive = false;
+        }
+    }
+
+    static void UpdateEditingState(Vector2 mousePos)
+    {
+        string previousInput = codeEditor.CurrentInput;
+        
+        codeEditor.HandleInput();
+        achievementManager.CheckAchievements(codeEditor.CurrentInput, codeEditor.Lines.Count);
+
+        if (codeEditor.CurrentInput.Length > previousInput.Length && 
+            char.IsLetter(codeEditor.CurrentInput[^1]) && 
+            !quickDeliveryActive && 
+            currentState == GameState.Editing)
+        {
+            StartQuickDeliveryForLetters();
+        }
+    }
+
+    static void ExecuteCode()
+    {
+        if (!string.IsNullOrWhiteSpace(codeEditor.CurrentInput))
+        {
+            codeEditor.Lines.Add(codeEditor.CurrentInput);
+            codeEditor.CurrentInput = "";
+        }
+        
+        if (codeEditor.Lines.Count > 0)
+        {
+            outputWindow.OutputText = CodeInterpreter.ExecuteCode(codeEditor.Lines);
+            outputWindow.IsVisible = true;
+            achievementManager.MarkProgramExecuted();
+            statusMessage = "Code executed successfully! Check output window.";
+            
+            currentState = GameState.Editing;
+            stickman.Reset();
+        }
+        else
+        {
+            statusMessage = "Write some code first!";
+        }
+    }
+
+    static void SaveCode()
+    {
+        if (!string.IsNullOrWhiteSpace(codeEditor.CurrentInput))
+        {
+            codeEditor.Lines.Add(codeEditor.CurrentInput);
+            codeEditor.CurrentInput = "";
+        }
+
+        if (codeEditor.Lines.Count > 0)
+        {
+            bool success = FileManager.SaveCodeToFile(codeEditor.Lines);
+            if (success)
+            {
+                statusMessage = "Code saved successfully to saves/code.txt!";
+            }
+            else
+            {
+                statusMessage = "Error saving code!";
+            }
+        }
+        else
+        {
+            statusMessage = "No code to save!";
+        }
+    }
+
+    static void StartQuickDeliveryForLetters()
+    {
+        if (!string.IsNullOrEmpty(codeEditor.CurrentInput) && 
+            char.IsLetter(codeEditor.CurrentInput[^1]) && 
+            !quickDeliveryActive && 
+            currentState == GameState.Editing)
+        {
+            quickDeliveryActive = true;
+            quickDeliveryLetter = codeEditor.CurrentInput[^1].ToString();
+            quickDeliveryTimer = 1.5f;
+            
+            quickDeliveryTargetPos = new Vector2(
+                codeEditor.Bounds.X + 100f,
+                codeEditor.Bounds.Y + 50f
+            );
+            
+            currentState = GameState.QuickDelivery;
+            statusMessage = "Quick delivery! Stickman is running...";
+            
+            stickman.Position = stickman.OriginalPosition;
+            stickman.CurrentWord = quickDeliveryLetter;
+        }
+    }
+
+    static void UpdateStickman()
+    {
+        if (currentState == GameState.QuickDelivery)
+        {
+            stickman.Update(currentState, quickDeliveryTargetPos);
+        }
+        else if (currentState == GameState.Falling)
+        {
+            stickman.Update(currentState, Vector2.Zero);
+            if (stickman.FallTimer <= 0)
+            {
+                currentState = GameState.Editing;
+                stickman.Reset();
+                statusMessage = "The letter sank in the water!";
+            }
+        }
+        else
+        {
+            stickman.Update(currentState, Vector2.Zero);
+        }
+    }
+
+    static void Draw()
+    {
+        Raylib.BeginDrawing();
+        
+        // Background
+        Raylib.ClearBackground(new Color(20, 20, 30, 255));
+        
+        // Draw header
+        DrawHeader();
+        
+        codeEditor.Draw();
+        EnvironmentRenderer.DrawWaterWaves(codeEditor.Bounds);
+        EnvironmentRenderer.DrawHouse(CalculateHousePosition());
+        stickman.Draw();
+
+        if (currentState == GameState.Falling)
+        {
+            EnvironmentRenderer.DrawSplashEffect(letterDropPosition, 1.0f - stickman.FallTimer);
+        }
+
+        // Draw UI elements
+        executeButton.Draw();
+        achievementsButton.Draw();
+        clearButton.Draw();
+        tipsButton.Draw();
+        saveButton.Draw();
+        volumeSlider.Draw();
+
+        DrawStatusMessage();
+
+        // Draw windows
+        outputWindow.Draw();
+        tipsWindow.Draw();
+        achievementManager.DrawAchievementsPanel(screenWidth, screenHeight);
+        achievementManager.DrawAchievementNotifications(screenWidth, screenHeight);
+
+        Raylib.EndDrawing();
+    }
+
+    static void DrawHeader()
+    {
+        // Header background
+        Raylib.DrawRectangle(0, 0, screenWidth, 60, new Color(40, 40, 60, 255));
+        Raylib.DrawRectangle(0, 60, screenWidth, 2, new Color(80, 60, 120, 255));
+        
+        // Title
+        Raylib.DrawText("STICKMAN IDE", screenWidth / 2 - 150, 10, 36, Color.White);
+        Raylib.DrawText("Code Delivery Adventure", screenWidth / 2 - 120, 45, 18, new Color(200, 180, 255, 255));
+    }
+
+    static void DrawStatusMessage()
+    {
+        Color statusColor = currentState switch
+        {
+            GameState.Success => Color.Green,
+            GameState.Falling => Color.Red,
+            GameState.QuickDelivery => Color.Yellow,
+            _ => new Color(100, 200, 255, 255)
+        };
+        
+        Raylib.DrawText("Status: " + statusMessage, 20, 70, 20, statusColor);
+    }
+
+    static Rectangle CalculateCodeEditor()
+    {
+        return new Rectangle(
+            screenWidth * 0.02f,
+            screenHeight * 0.12f,
+            screenWidth * (CODE_EDITOR_WIDTH_PERCENT / 100f),
+            screenHeight * (CODE_EDITOR_HEIGHT_PERCENT / 100f)
+        );
+    }
+
+    static Vector2 CalculateCodeEditorPosition()
+    {
+        return new Vector2(screenWidth * 0.08f, screenHeight * 0.187f);
+    }
+
+    static Rectangle CalculateExecuteButton()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.15f,
+            180,
+            40
+        );
+    }
+
+    static Rectangle CalculateAchievementsButton()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.22f,
+            180,
+            40
+        );
+    }
+
+    static Rectangle CalculateClearButton()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.29f,
+            180,
+            40
+        );
+    }
+
+    static Rectangle CalculateTipsButton()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.36f,
+            180,
+            40
+        );
+    }
+
+    static Rectangle CalculateSaveButton()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.43f,
+            180,
+            40
+        );
+    }
+
+    static Rectangle CalculateVolumeSlider()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.57f,
+            200,
+            20
+        );
+    }
+
+    static Rectangle CalculateVolumeSliderActual()
+    {
+        return new Rectangle(
+            screenWidth * 0.75f,
+            screenHeight * 0.56f,
+            200,
+            30
+        );
+    }
+
+    static Vector2 CalculateHousePosition()
+    {
+        return new Vector2(screenWidth * 0.85f, screenHeight * 0.65f);
+    }
+
+    static Vector2 CalculateStickmanStartPosition()
+    {
+        return new Vector2(screenWidth * 0.89f, screenHeight * 0.71f);
     }
 }
