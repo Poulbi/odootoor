@@ -153,7 +153,7 @@ public partial class Program
             }
             else if (saveButton.IsMouseOver())
             {
-                SaveCode();
+                //SaveCode();
             }
         }
 
@@ -184,7 +184,7 @@ public partial class Program
     static void UpdateEditingState(Vector2 mousePos)
     {
         HandleInput();
-        achievementManager.CheckAchievements(editor.CurrentInput, editor.Lines.Count);
+        //achievementManager.CheckAchievements(editor.CurrentInput, editor.Lines.Count);
     }
 
     static void UpdateStickman()
@@ -267,29 +267,29 @@ public partial class Program
 
     static void ExecuteCode()
     {
-        string fullCode = string.Join("\n", editor.Lines) +
-                          (string.IsNullOrEmpty(editor.CurrentInput) ? "" : "\n" + editor.CurrentInput);
+        //string fullCode = string.Join("\n", editor.Lines) +
+        //                  (string.IsNullOrEmpty(editor.CurrentInput) ? "" : "\n" + editor.CurrentInput);
 
-        if (!string.IsNullOrWhiteSpace(editor.CurrentInput))
-        {
-            editor.Lines.Add(editor.CurrentInput);
-            editor.CurrentInput = "";
-        }
+        //if (!string.IsNullOrWhiteSpace(editor.CurrentInput))
+        //{
+        //    editor.Lines.Add(editor.CurrentInput);
+        //    editor.CurrentInput = "";
+        //}
 
-        if (fullCode.Length > 0)
-        {
-            outputWindow.OutputText = ExecuteCodeInterpreter(editor.Lines);
-            outputWindow.IsVisible = true;
-            achievementManager.MarkProgramExecuted();
-            statusMessage = "Code executed successfully! Check output window.";
+        //if (fullCode.Length > 0)
+        //{
+        //    outputWindow.OutputText = ExecuteCodeInterpreter(editor.Lines);
+        //    outputWindow.IsVisible = true;
+        //    achievementManager.MarkProgramExecuted();
+        //    statusMessage = "Code executed successfully! Check output window.";
 
-            currentState = GameState.Editing;
-            stickman.Reset();
-        }
-        else
-        {
-            statusMessage = "Write some code first!";
-        }
+        //    currentState = GameState.Editing;
+        //    stickman.Reset();
+        //}
+        //else
+        //{
+        //    statusMessage = "Write some code first!";
+        //}
     }
 
     // Simple code interpreter - hernoemd om conflict te voorkomen
