@@ -796,7 +796,7 @@ class Program
     static UIButton tipsButton;
     static UIButton saveButton;
     static VolumeSlider volumeSlider;
-    static OutputWindow outputWindow = new OutputWindow();
+    static ConsoleWindow consoleWindow = new ConsoleWindow();
     static TipsWindow tipsWindow = new TipsWindow();
     
     static Random rand = new Random();
@@ -863,7 +863,7 @@ class Program
         saveButton.Bounds = CalculateSaveButton();
         volumeSlider.VisualBounds = CalculateVolumeSlider();
         volumeSlider.ActualBounds = CalculateVolumeSliderActual();
-        outputWindow.Bounds = new Rectangle(screenWidth / 2 - 400, screenHeight / 2 - 250, 800, 500);
+        consoleWindow.Bounds = new Rectangle(screenWidth / 2 - 400, screenHeight / 2 - 250, 800, 500);
         tipsWindow.Bounds = new Rectangle(screenWidth / 2 - 300, screenHeight / 2 - 200, 600, 400);
     }
 
@@ -875,7 +875,7 @@ class Program
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
             achievementManager.ShowAchievementsPanel = false;
-            outputWindow.IsVisible = false;
+            consoleWindow.IsVisible = false;
             tipsWindow.IsVisible = false;
         }
         
@@ -887,7 +887,7 @@ class Program
         
         volumeSlider.Update();
         codeEditor.HandleScroll(mousePos);
-        outputWindow.HandleScroll(mousePos);
+        consoleWindow.HandleScroll(mousePos);
         
         // FIXED: Achievements button - simplified click detection
         if (Raylib.IsMouseButtonPressed(MouseButton.Left))
@@ -917,9 +917,9 @@ class Program
         }
 
         // Close buttons for windows
-        if (outputWindow.CloseButtonClicked())
+        if (consoleWindow.CloseButtonClicked())
         {
-            outputWindow.IsVisible = false;
+            consoleWindow.IsVisible = false;
         }
 
         if (tipsWindow.CloseButtonClicked())
@@ -1019,8 +1019,8 @@ class Program
         
         if (codeEditor.Lines.Count > 0)
         {
-            outputWindow.OutputText = CodeInterpreter.ExecuteCode(codeEditor.Lines);
-            outputWindow.IsVisible = true;
+            // _consoleWindow.OutputText = CodeInterpreter.ExecuteCode(codeEditor.Lines);
+            consoleWindow.IsVisible = true;
             achievementManager.MarkProgramExecuted();
             statusMessage = "Code executed successfully! Check output window.";
             
@@ -1136,7 +1136,7 @@ class Program
         DrawStatusMessage();
 
         // Draw windows
-        outputWindow.Draw();
+        consoleWindow.Draw();
         tipsWindow.Draw();
         achievementManager.DrawAchievementsPanel(screenWidth, screenHeight);
         achievementManager.DrawAchievementNotifications(screenWidth, screenHeight);
