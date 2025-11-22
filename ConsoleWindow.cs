@@ -3,19 +3,20 @@ using System.Diagnostics;
 using Raylib_cs;
 using System.Numerics;
 
-class OutputWindow
+class ConsoleWindow
 {
     public bool IsVisible { get; set; }
-    public string OutputText { get; set; } = "";
     public Rectangle Bounds { get; set; }
     public float ScrollOffset { get; set; }
-    public ConsoleOutput output;
+    public Output output;
     
-    public OutputWindow()
+    public ConsoleWindow()
     {
+        output = new Output();
+        output.Init();
+        
         IsVisible = false;
         Bounds = new Rectangle(200, 100, 800, 500);
-        output = new ConsoleOutput();
     }
     
     public void HandleScroll(Vector2 mousePos)
@@ -30,12 +31,15 @@ class OutputWindow
     
     private int CountLines()
     {
-        return OutputText.Split('\n').Length;
+        // lock (output.buffer)
+        // {
+        //     return output.buffer.Count;
+        // }
+        return 0;
     }
     
     public void Draw()
     {
-        output.Init();
         if (!IsVisible) return;
         
         // Window background with border
@@ -54,7 +58,7 @@ class OutputWindow
         Raylib.DrawText("X", (int)closeButton.X + 6, (int)closeButton.Y + 2, 16, Color.White);
         
         // Output content
-        output.Draw();
+        output.Draw(Bounds);
     }
     
     public bool CloseButtonClicked()
@@ -67,10 +71,10 @@ class OutputWindow
     }
 }
 
-public class ConsoleOutput 
+public class Output 
 {
     private Process proc;
-    private List<string> buffer = new List<string>();
+    private List<string> buffer {get; set;} 
     private const int MaxLines = 200;
 
     public void Init()
@@ -98,15 +102,16 @@ public class ConsoleOutput
             }
         });
     }
-    public void Draw()
+    public void Draw(Rectangle bounds)
     {
-        int y = 10;
+        int y = (int)bounds.Y + 40;
+        
         lock (buffer)
         {
             foreach (var line in buffer)
             {
-                Raylib.DrawText(line, 10, y, 14, Color.White);
-                y += 18;
+                Raylib.DrawText(line, (int)bounds.X + 10, y, 14, Color.White);
+                y += 20;
             }
         }
     }
