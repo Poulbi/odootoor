@@ -1,9 +1,6 @@
 using Raylib_cs;
-using System;
-using System.Collections.Generic;
 using System.Numerics;
-using System.Linq;
-using System.IO;
+using RaylibConsole;
 
 enum GameState { Editing, Delivering, Returning, Success, QuickDelivery, Falling }
 
@@ -541,14 +538,14 @@ class VolumeSlider
         // Background
         Raylib.DrawRectangleRec(VisualBounds, new Color(50, 50, 70, 255));
         Raylib.DrawRectangleLines((int)VisualBounds.X, (int)VisualBounds.Y, 
-                                (int)VisualBounds.Width, (int)VisualBounds.Height, new Color(100, 100, 120, 255));
+            (int)VisualBounds.Width, (int)VisualBounds.Height, new Color(100, 100, 120, 255));
         
         // Fill
         float fillHeight = VisualBounds.Height * Volume;
         Color fillColor = new Color(50, 200, 50, 255);
         
         Raylib.DrawRectangle((int)VisualBounds.X, (int)(VisualBounds.Y + VisualBounds.Height - fillHeight), 
-                           (int)VisualBounds.Width, (int)fillHeight, fillColor);
+            (int)VisualBounds.Width, (int)fillHeight, fillColor);
         
         // Marker
         float markerY = VisualBounds.Y + VisualBounds.Height - fillHeight;
@@ -557,7 +554,7 @@ class VolumeSlider
         // Text
         Raylib.DrawText("VOLUME", (int)VisualBounds.X, (int)VisualBounds.Y - 30, 20, Color.White);
         Raylib.DrawText($"{(int)(Volume * 100)}%", (int)VisualBounds.X + (int)VisualBounds.Width + 15, 
-                      (int)VisualBounds.Y + (int)VisualBounds.Height / 2 - 10, 20, Color.White);
+            (int)VisualBounds.Y + (int)VisualBounds.Height / 2 - 10, 20, Color.White);
     }
 }
 
@@ -608,11 +605,13 @@ class OutputWindow
     public string OutputText { get; set; } = "";
     public Rectangle Bounds { get; set; }
     public float ScrollOffset { get; set; }
+    public ConsoleWindow cWindow;
     
     public OutputWindow()
     {
         IsVisible = false;
         Bounds = new Rectangle(200, 100, 800, 500);
+        cWindow = new ConsoleWindow();
     }
     
     public void HandleScroll(Vector2 mousePos)
@@ -632,6 +631,7 @@ class OutputWindow
     
     public void Draw()
     {
+        cWindow.Init();
         if (!IsVisible) return;
         
         // Window background with border
@@ -650,28 +650,12 @@ class OutputWindow
         Raylib.DrawText("X", (int)closeButton.X + 6, (int)closeButton.Y + 2, 16, Color.White);
         
         // Output content
-        string[] lines = OutputText.Split('\n');
-        int visibleLines = (int)((Bounds.Height - 40) / 20);
-        int startLine = (int)(ScrollOffset / 20);
-        
-        for (int i = startLine; i < Math.Min(startLine + visibleLines + 1, lines.Length); i++)
-        {
-            float yPos = Bounds.Y + 40 + (i - startLine) * 20 - (ScrollOffset % 20);
-            Raylib.DrawText(lines[i], (int)Bounds.X + 10, (int)yPos, 16, Color.White);
-        }
-        
-        // Scroll bar
-        if (CountLines() * 20 > Bounds.Height - 40)
-        {
-            float scrollbarHeight = (Bounds.Height - 40) * ((Bounds.Height - 40) / (CountLines() * 20));
-            float scrollbarY = Bounds.Y + 40 + (ScrollOffset / (CountLines() * 20)) * (Bounds.Height - 40 - scrollbarHeight);
-            
-            Raylib.DrawRectangle((int)Bounds.X + (int)Bounds.Width - 12, (int)scrollbarY, 8, (int)scrollbarHeight, new Color(80, 80, 100, 255));
-        }
+        cWindow.Draw();
     }
     
     public bool CloseButtonClicked()
     {
+        cWindow.Stop();
         if (!IsVisible) return false;
         
         Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 5, 20, 20);
