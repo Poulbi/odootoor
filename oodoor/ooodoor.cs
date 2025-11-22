@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 
-class Program
+class oodoor 
 {
     static List<string> GetData(string file)
     {
@@ -15,7 +15,7 @@ class Program
         return textStructure;
     }
 
-    static void Main(string[] args)
+    static void get_file(string[] args)
     {
         if (args.Length < 1)
         {
