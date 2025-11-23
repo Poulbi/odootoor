@@ -12,7 +12,6 @@ partial class Program
     static int font_size = 31;
     static float spacing = 5f;
 
-
     static string regular_font_path = "assets/JetBrainsMono-Bold.ttf";
     static string extra_bold_font_path = "assets/JetBrainsMono-ExtraBold.ttf";
     static Font regular_font;
@@ -288,6 +287,19 @@ partial class Program
 
                     //achievementManager.CheckAchievements(editor.CurrentInput, editor.Lines.Count);
                 }
+
+																if (IsGamepadAvailable(0))
+																{
+																	int key = GetGamepadButtonPressed();
+																	if(key > 0)
+																	{
+																	Console.WriteLine($"{key}");
+																	}
+																	if(IsGamepadButtonDown(0, GamepadButton.LeftFaceDown))
+																	{
+																	 stickmanPos.Y += runSpeed;
+																	}
+																}
 
                 achievementManager.UpdateAchievementDisplays();
 
