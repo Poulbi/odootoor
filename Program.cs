@@ -11,7 +11,7 @@ partial class Program
     // font 
     static int font_size = 31;
     static float spacing = 5f;
-    
+
 
     static string regular_font_path = "assets/JetBrainsMono-Bold.ttf";
     static string extra_bold_font_path = "assets/JetBrainsMono-ExtraBold.ttf";
@@ -193,7 +193,7 @@ partial class Program
                             );
 
                     if (!StickmanOver(stickmanPos, achievementsPanel) &&
-                       !StickmanOver(stickmanPos, achievementsButton.Bounds))
+                            !StickmanOver(stickmanPos, achievementsButton.Bounds))
                     {
                         achievementManager.ShowAchievementsPanel = false;
                     }
@@ -329,9 +329,9 @@ partial class Program
                 DrawEditor();
 
                 /*
-                EnvironmentRenderer.DrawWaterWaves(editor.Bounds);
-                EnvironmentRenderer.DrawHouse(CalculateHousePosition());
-                */
+                   EnvironmentRenderer.DrawWaterWaves(editor.Bounds);
+                   EnvironmentRenderer.DrawHouse(CalculateHousePosition());
+                   */
 
 
 
@@ -412,6 +412,16 @@ partial class Program
 
         CloseWindow();
         MusicManager.Stop();
+    }
+
+    public static void HandleCharacterDrop(CharacterElement c)
+    {
+        while (c.current_position.Y++ < 1000)
+        {
+            DrawTextEx(GetFontDefault(), c.toString(), new Vector2(c.current_position.X, c.current_position.Y), 20, 10, Color.White);              
+            c.current_position.Y--;
+        }
+
     }
 
 }

@@ -149,6 +149,12 @@ public partial class Program
         if (key > 0)
         {
             pressedChar = true;
+            // Select character for drop
+            if (drop())
+            {
+                CharacterElement.SelectCharacterDrop(key, cursorPosition);
+            }
+
             MusicManager.PlayTypeSound();
 
             string charString = ((char)key).ToString();
