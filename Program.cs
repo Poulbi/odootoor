@@ -43,6 +43,7 @@ partial class Program
     static float quickDeliveryTimer = 0;
     static Vector2 quickDeliveryTargetPos;
     static Vector2 letterDropPosition;
+    static float Volume = 0.05f;
 
     static GameState currentState = GameState.Editing;
     static string statusMessage = "Welcome to Stickman IDE! Type code to begin...";
@@ -57,160 +58,7 @@ partial class Program
     static int codeFontSize = 18;
 
     public static List<PunchAnimation> punchAnimationsInProgress = new List<PunchAnimation>();
-    class SaveWindow
-    {
-        public bool IsVisible { get; set; }
-        public Rectangle Bounds { get; set; }
-        public string FileName { get; set; } = "code";
-        public bool IsInputActive { get; set; }
 
-        public SaveWindow()
-        {
-            IsVisible = false;
-            Bounds = new Rectangle(300, 200, 500, 200);
-        }
-
-        public void Update()
-        {
-            if (!IsVisible) return;
-
-            Vector2 mousePos = GetMousePosition();
-
-            // Check close button
-            Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 15, 20, 20);
-            if (IsMouseButtonPressed(MouseButton.Left) && CheckCollisionPointRec(mousePos, closeButton))
-            {
-                IsVisible = false;
-                FileName = "code";
-                return;
-            }
-
-            // Check input field
-            Rectangle inputField = new Rectangle(Bounds.X + 50, Bounds.Y + 80, Bounds.Width - 100, 40);
-            if (IsMouseButtonPressed(MouseButton.Left))
-            {
-                if (CheckCollisionPointRec(mousePos, inputField))
-                {
-                    IsInputActive = true;
-                }
-                else
-                {
-                    IsInputActive = false;
-                }
-            }
-
-            // Check save button
-            Rectangle saveButton = new Rectangle(Bounds.X + 150, Bounds.Y + 140, 80, 40);
-            bool saveHover = CheckCollisionPointRec(mousePos, saveButton);
-
-            if (IsMouseButtonPressed(MouseButton.Left) && saveHover)
-            {
-                SaveFile();
-                IsVisible = false;
-            }
-
-            // Check cancel button
-            Rectangle cancelButton = new Rectangle(Bounds.X + 270, Bounds.Y + 140, 80, 40);
-            bool cancelHover = CheckCollisionPointRec(mousePos, cancelButton);
-
-            if (IsMouseButtonPressed(MouseButton.Left) && cancelHover)
-            {
-                IsVisible = false;
-                FileName = "code";
-            }
-
-            // Handle text input
-            if (IsInputActive)
-            {
-                int key = GetCharPressed();
-                while (key > 0)
-                {
-                    if (key >= 32 && key <= 125) // Printable characters
-                    {
-                        FileName += (char)key;
-                    }
-                    key = GetCharPressed();
-                }
-
-                if (IsKeyPressed(KeyboardKey.Backspace) && FileName.Length > 0)
-                {
-                    FileName = FileName.Substring(0, FileName.Length - 1);
-                }
-            }
-        }
-
-        public void SaveFile()
-        {
-            // Ensure .py extension
-            if (!FileName.ToLower().EndsWith(".py"))
-            {
-                FileName += ".py";
-            }
-
-            bool success = FileManager.SaveCodeToFile(editor.Text.Split('\n').ToList(), FileName);
-            if (success)
-            {
-                statusMessage = $"Code saved as {FileName}!";
-            }
-            else
-            {
-                statusMessage = "Error saving file!";
-            }
-        }
-
-        public void Draw(bool Hovered)
-        {
-            if (!IsVisible) return;
-
-            // Background
-            DrawRectangleRec(Bounds, ThemeManager.GetPanelBackground());
-            DrawRectangleLines((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height, ThemeManager.GetAccentColor());
-
-            // Title
-            DrawTextEx(regular_font, "SAVE CODE", new Vector2(Bounds.X + 180, Bounds.Y + 20), 28, spacing, Color.Gold);
-
-            // File name label
-            DrawTextEx(regular_font, "File name:", new Vector2(Bounds.X + 50, Bounds.Y + 50), 20, spacing, ThemeManager.GetTextColor());
-
-            // Input field
-            Rectangle inputField = new Rectangle(Bounds.X + 50, Bounds.Y + 80, Bounds.Width - 100, 40);
-            Color inputColor = IsInputActive ? new Color(80, 80, 100, 255) : new Color(60, 60, 80, 255);
-            DrawRectangleRec(inputField, inputColor);
-            DrawRectangleLines((int)inputField.X, (int)inputField.Y, (int)inputField.Width, (int)inputField.Height, ThemeManager.GetBorderColor());
-
-            // File name text
-            string displayName = FileName;
-            if (IsInputActive && ((int)(GetTime() * 2) % 2 == 0))
-            {
-                displayName += "|";
-            }
-            DrawTextEx(regular_font, displayName, new Vector2(inputField.X + 10, inputField.Y + 10), 20, spacing, Color.White);
-
-            // Save button
-            Rectangle saveButton = new Rectangle(Bounds.X + 150, Bounds.Y + 140, 80, 40);
-            bool saveHover = CheckCollisionPointRec(GetMousePosition(), saveButton);
-            Color saveColor = saveHover ? new Color(60, 160, 60, 255) : new Color(40, 120, 40, 255);
-
-            DrawRectangleRec(saveButton, saveColor);
-            DrawRectangleLines((int)saveButton.X, (int)saveButton.Y, (int)saveButton.Width, (int)saveButton.Height, new Color(80, 200, 80, 255));
-            DrawTextEx(regular_font, "SAVE", new Vector2(saveButton.X + 13, saveButton.Y + 12), 20, spacing, Color.White);
-
-            // Cancel button
-            Rectangle cancelButton = new Rectangle(Bounds.X + 270, Bounds.Y + 140, 80, 40);
-            bool cancelHover = CheckCollisionPointRec(GetMousePosition(), cancelButton);
-            Color cancelColor = cancelHover ? new Color(160, 60, 60, 255) : new Color(120, 40, 40, 255);
-
-            DrawRectangleRec(cancelButton, cancelColor);
-            DrawRectangleLines((int)cancelButton.X, (int)cancelButton.Y, (int)cancelButton.Width, (int)cancelButton.Height, new Color(200, 80, 80, 255));
-            DrawTextEx(regular_font, "BACK", new Vector2(cancelButton.X + 5, cancelButton.Y + 12), 20, spacing, Color.White);
-
-            // Close button
-            Rectangle closeButton = new Rectangle(Bounds.X + Bounds.Width - 35, Bounds.Y + 15, 20, 20);
-            Color closeColor = Hovered ? Color.Red : new Color(200, 100, 100, 255);
-            DrawRectangleRec(closeButton, closeColor);
-            DrawTextEx(regular_font, "X", new Vector2(closeButton.X + 4, closeButton.Y + 2), codeFontSize, 0, Color.White);
-        }
-    }
     static void Main()
     {
         InitWindow(screenWidth, screenHeight, "Stickman IDE - Code Adventure");
@@ -239,8 +87,10 @@ partial class Program
         var runFrames = new Frames(atlasRun, 64, 64, 9, 4);
         var idleFrames = new Frames(atlasIdle, 64, 64, 6, 4);
         var stickmanPos = new Vector2(1200, 780);
-
         var stickmanSize = 3f;
+
+        Raylib.SetMasterVolume(Volume);
+
         while (!WindowShouldClose())
         {
             pressedChar = false;
@@ -273,7 +123,7 @@ partial class Program
             // Handle input
             {
                 var mousePos = GetMousePosition();
-                volumeSlider.Update();
+                volumeSlider.Update(ref Volume);
                 HandleScroll(mousePos);
                 outputWindow.HandleScroll(mousePos);
 
@@ -531,7 +381,7 @@ partial class Program
                     }
                 }
 
-		var turboMode = 1;
+                var turboMode = 1;
 
                 if (!stickmanIsStuck)
                 {
@@ -560,9 +410,9 @@ partial class Program
 
                         if (IsGamepadButtonDown(0, GamepadButton.RightFaceLeft))
                         {
-				turboMode = 4;
+                            turboMode = 4;
                         }
-			dPos *= turboMode;
+                        dPos *= turboMode;
 
                     }
                 }
@@ -615,18 +465,17 @@ partial class Program
                 }
 
                 // Update run animation
-                Frames.UpdateIndex(stickmanFrames);
-                if (stickmanIsPunching)
+
+                bool donePunching = (stickmanIsPunching &&
+                                     Frames.UpdateIndex(stickmanFrames) &&
+                                     stickmanFrames.index == 0);
+                if (donePunching)
                 {
-                    if (Frames.ChangedIndex(stickmanFrames) && stickmanFrames.index == 0)
-                    {
-                        stickmanIsPunching = false;
-                        stickmanIsStuck = false;
-                        stickmanHasPunched = true;
-                        stickmanFrames.index = 0;
-                    }
+                    stickmanIsPunching = false;
+                    stickmanIsStuck = false;
+                    stickmanHasPunched = true;
+                    stickmanFrames.index = 0;
                 }
-                stickmanFrames.prevTimer = stickmanFrames.timer;
             }
 
             // Draw()
@@ -689,20 +538,6 @@ partial class Program
                                source, dest, new Vector2(dest.Width / 2f, dest.Height / 2f),
                                0, Color.Blue);
 
-
-                if (pressedChar)
-                {
-                    MusicManager.PlayTypeSound();
-
-                    var punchAnimationFrames = new Frames(atlasPunch, 64, 64, 10, 1f);
-                    punchAnimationFrames.prevTimer = 0;
-                    punchAnimationFrames.timer = 0;
-
-                    string charToDisplay = string.IsNullOrEmpty(lastCharString) ? " " : lastCharString;
-                    var punchAnimation = new PunchAnimation(punchAnimationFrames, lastCharPos, charToDisplay);
-                    punchAnimationsInProgress.Add(punchAnimation);
-                }
-
                 for (int animationIndex = 0; animationIndex < punchAnimationsInProgress.Count; animationIndex += 1)
                 {
                     var animation = punchAnimationsInProgress[animationIndex];
@@ -710,15 +545,20 @@ partial class Program
                     Frames.UpdateIndex(animation.frames);
                     DrawCharacterWithPunchAnimation(animation.pos, animation.character, animation.frames);
 
-                    if (animation.frames.done)
+                    if (animation.frames.done > 0)
                     {
                         punchAnimationsInProgress.RemoveAt(animationIndex);
                         animationIndex--;
                     }
-                    else
-                    {
-                        animation.frames.timer = animation.frames.prevTimer;
-                    }
+                }
+
+                if (pressedChar)
+                {
+                    MusicManager.PlayTypeSound();
+
+                    var frames = new Frames(atlasPunch, punchFrames.width, punchFrames.height, punchFrames.count, 4f);
+                    var punchAnimation = new PunchAnimation(frames, lastCharPos, lastCharString);
+                    punchAnimationsInProgress.Add(punchAnimation);
                 }
 
                 EndDrawing();

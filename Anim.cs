@@ -18,8 +18,7 @@ public class Frames
     public int prevTimer;
 
     public float speed;
-    public bool stopped;
-    public bool done;
+    public int done;
 
     public Frames(Texture2D _atlas, int _width, int _height, int _count, float _speed)
     {
@@ -28,49 +27,35 @@ public class Frames
         height = _height;
         count = _count;
         speed = _speed;
-        stopped = false;
-        done = false;
     }
 
-    public static bool ChangedIndex(Frames frames)
-    {
-        bool result = (frames.timer != frames.prevTimer);
-        return result;
-    }
-
-    public static void UpdateIndex(Frames frames)
+    // Returns true if the index changed
+    public static bool UpdateIndex(Frames frames)
     {
         frames.timer = (int)(frames.count * GetTime() * frames.speed);
-        frames.index += (frames.timer != frames.prevTimer) ? 1 : 0;
 
-        Debug.Assert(frames.index <= frames.count);
+        bool changed = (frames.timer != frames.prevTimer);
+        if (changed)
+        {
+            frames.index += changed ? 1 : 0;
+            Debug.Assert(frames.index <= frames.count);
+        }
 
         if (frames.index == frames.count)
         {
             frames.index -= frames.count;
-            frames.done = true;
+            frames.done += 1;
         }
-    }
-}
 
-public struct PunchAnimation
-{
-    public Vector2 pos;
-    public string character;
-    public Frames frames;
-    public PunchAnimation(Frames _frames, Vector2 _pos, string _character)
-    {
-        pos = _pos;
-        character = _character;
-        frames = _frames;
+        frames.prevTimer = frames.timer;
+
+        return changed;
     }
 }
 
 public partial class Program
 {
     const bool DEBUGShowBoxes = false;
-    const float FPS = 60f;
-    const float dt = 1 / 60f;
 
     static void DrawCharacterWithPunchAnimation(Vector2 charPos, string character, Frames frames)
     {
@@ -80,8 +65,8 @@ public partial class Program
 
         var fontDim = MeasureTextEx(defaultFont, character, codeFontSize, 0);
 
-	float width = 64*1;
-	float height = 64*1;
+        float width = 64 * 1;
+        float height = 64 * 1;
         var manPos = new Vector2(charPos.X + (int)(fontDim.X + width / 2), charPos.Y + (int)(fontDim.Y / 2));
         // manual hand offset
         manPos.X -= 16;
